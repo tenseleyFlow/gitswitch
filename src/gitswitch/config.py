@@ -30,18 +30,22 @@ def get_config_path():
 def create_default_config(config_path):
     """Create a default configuration file"""
     default_config = """# Git Switcher Account Configuration
-# Add your git accounts here
+
+[settings]
+default_scope = "local"  # Options: "local", "global"
 
 [accounts.1]
 name = "You"
 email = "your@email.com"
 description = "Default Account"
+preferred_scope = "local"  # Optional: override default scope for this account
 
 # Add more as follows:
 #   [accounts.2]
 #   name = "your/user name"
 #   email = "account email"
 #   description = "Account description"
+#   preferred_scope = "global"  # Optional per-account preference
 #
 """
 
@@ -100,3 +104,14 @@ def load_accounts():
         sys.exit(1)
 
     return accounts
+
+
+def get_default_scope():
+    """Get the default scope from configuration"""
+    config = load_config()
+    return config.get('settings', {}).get('default_scope', 'local')
+
+
+def get_account_preferred_scope(account_info):
+    """Get the preferred scope for a specific account"""
+    return account_info.get('preferred_scope', get_default_scope())

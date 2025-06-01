@@ -20,4 +20,4 @@ Usage:
   gitswitch --local 2          # Switch to account #2 locally
 ```
 
-[^1]: if you use a version manager like asdf, you may need to reshim to make the command available.
+[^1]: if you use a version manager like `asdf`, you may need to reshim to make the command available.

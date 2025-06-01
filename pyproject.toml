@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gitswitch"
+version = "1.0.0"
+description = "Easy switching between git user configurations"
+authors = [{name = "Matthew Forrester Wolffe", email = "espadonne@outlook.com"}]
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "tomli >= 1.2.0; python_version < '3.11'",
+    "tomli_w >= 1.0.0",
+]
+keywords = ["git", "cli", "configuration", "user"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.scripts]
+gitswitch = "gitswitch.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

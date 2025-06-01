@@ -38,14 +38,27 @@ default_scope = "local"  # Options: "local", "global"
 name = "You"
 email = "your@email.com"
 description = "Default Account"
-preferred_scope = "local"  # Optional: override default scope for this account
+preferred_scope = "local"     # Optional: override default scope for this account
+gpg_key = ""                  # Optional: GPG key ID for signing (e.g., "ABC123DEF456")
+signing_enabled = false       # Optional: enable GPG signing for this account
+
+# Example with GPG signing:
+# [accounts.2]
+# name = "Your Name"
+# email = "work@company.com"
+# description = "Work Account"
+# preferred_scope = "global"
+# gpg_key = "ABC123DEF456"    # Your GPG key ID
+# signing_enabled = true       # Enable GPG signing
 
 # Add more as follows:
-#   [accounts.2]
+#   [accounts.3]
 #   name = "your/user name"
 #   email = "account email"
 #   description = "Account description"
-#   preferred_scope = "global"  # Optional per-account preference
+#   preferred_scope = "local"   # Optional per-account preference
+#   gpg_key = "XYZ789GHI012"   # Optional GPG key
+#   signing_enabled = true      # Optional GPG signing
 #
 """
 

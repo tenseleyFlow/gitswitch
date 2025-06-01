@@ -3,6 +3,7 @@
 import sys
 from .config import load_config, save_config, load_accounts
 from .display import show_accounts
+from .git_ops import validate_gpg_key
 
 
 def get_next_account_number(accounts):
@@ -10,6 +11,35 @@ def get_next_account_number(accounts):
     if not accounts:
         return 1
     return max(accounts.keys()) + 1
+
+
+def prompt_for_gpg_config():
+    """Prompt user for GPG configuration"""
+    print("\n🔐 GPG Signing Configuration (optional):")
+
+    enable_signing = input("Enable GPG signing for this account? (y/N): ").strip().lower()
+
+    if enable_signing != 'y':
+        return None, False
+
+    # grab GPG key
+    print("\nTo find your GPG key ID, run: gpg --list-secret-keys --keyid-format=long")
+    gpg_key = input("Enter GPG key ID (or press Enter to skip): ").strip()
+
+    if not gpg_key:
+        return None, False
+
+    # Validate the key
+    is_valid, message = validate_gpg_key(gpg_key)
+    if not is_valid:
+        print(f"⚠️  Warning: {message}")
+        use_anyway = input("Use this key anyway? (y/N): ").strip().lower()
+        if use_anyway != 'y':
+            return None, False
+    else:
+        print(f"✅ {message}")
+
+    return gpg_key, True
 
 
 def add_account():
@@ -33,6 +63,15 @@ def add_account():
         if not description:
             description = f"{name} ({email})"
 
+        # get scope preference
+        print("\nScope options: local (current repo only) or global (all repos)")
+        scope = input("Preferred scope (local/global) [local]: ").strip().lower()
+        if scope not in ['local', 'global']:
+            scope = 'local'
+
+        # Get GPG configuration
+        gpg_key, signing_enabled = prompt_for_gpg_config()
+
         # load existing config
         config = load_config()
         if 'accounts' not in config:
@@ -49,22 +88,32 @@ def add_account():
         # Get next account number
         account_num = get_next_account_number(accounts)
 
-        # addnew account
+        # add new account
         new_account = {
             "name": name,
             "email": email,
-            "description": description
+            "description": description,
+            "preferred_scope": scope
         }
+
+        # Add GPG config if provided
+        if gpg_key:
+            new_account["gpg_key"] = gpg_key
+        new_account["signing_enabled"] = signing_enabled
 
         # convert back to string keys for TOML
         config['accounts'][str(account_num)] = new_account
 
         # Save config
         if save_config(config):
-            print(f"✅ Successfully added account #{account_num}:")
+            print(f"\n✅ Successfully added account #{account_num}:")
             print(f"   Name: {name}")
             print(f"   Email: {email}")
             print(f"   Description: {description}")
+            print(f"   Scope: {scope}")
+            if gpg_key:
+                print(f"   GPG Key: {gpg_key}")
+            print(f"   GPG Signing: {'✅ Enabled' if signing_enabled else '❌ Disabled'}")
             return True
         else:
             print("❌ Failed to save account")
@@ -105,6 +154,10 @@ def remove_account():
         print(f"   Name: {account['name']}")
         print(f"   Email: {account['email']}")
         print(f"   Description: {account['description']}")
+
+        gpg_key = account.get('gpg_key')
+        if gpg_key:
+            print(f"   GPG Key: {gpg_key}")
 
         confirm = input("\nAre you sure? (y/N): ").strip().lower()
 

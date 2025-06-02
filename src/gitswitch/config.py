@@ -14,7 +14,7 @@ except ImportError:
 try:
     import tomli_w
 except ImportError:
-    print("❌ tomli_w is required for configuration management")
+    print("[ERROR] tomli_w is required for configuration management")
     print("   Install with: pip install tomli_w")
     sys.exit(1)
 

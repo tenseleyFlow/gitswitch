@@ -250,7 +250,7 @@ def safe_input(prompt: str, default: str = None) -> str:
 
         return result
     except (KeyboardInterrupt, EOFError):
-        print("\n❌ Input cancelled")
+        print("\n[CANCELLED] Input cancelled")
         raise KeyboardInterrupt()
 
 

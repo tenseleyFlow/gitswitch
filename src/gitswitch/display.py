@@ -122,25 +122,23 @@ class DisplayManager:
         """Format a single configuration scope for display."""
         if not config["name"] or not config["email"]:
             return f"{scope_name}: [NOT SET]"
-        
-        lines = [
-            f"{scope_name}:",
-            f"   Name: {config['name']}",
-            f"   Email: {config['email']}"
-        ]
-        
+
+        lines = [f"{scope_name}:", f"   Name: {config['name']}", f"   Email: {config['email']}"]
+
         gpg = config["gpg"]
         if gpg["signing_key"]:
             commit_status = "[ENABLED]" if gpg["commit_gpgsign"] else "[DISABLED]"
             tag_status = "[ENABLED]" if gpg["tag_gpgsign"] else "[DISABLED]"
-            lines.extend([
-                f"   GPG Key: {gpg['signing_key']}",
-                f"   GPG Commit Signing: {commit_status}",
-                f"   GPG Tag Signing: {tag_status}"
-            ])
+            lines.extend(
+                [
+                    f"   GPG Key: {gpg['signing_key']}",
+                    f"   GPG Commit Signing: {commit_status}",
+                    f"   GPG Tag Signing: {tag_status}",
+                ]
+            )
         else:
             lines.append("   GPG Signing: [NOT CONFIGURED]")
-        
+
         return "\n".join(lines)
 
     def show_scope_status(self):
@@ -151,7 +149,7 @@ class DisplayManager:
             print("╚══════════════════════════════════════════════════════════╝")
 
             scope_info = self.git_ops.get_git_scope_info()
-            
+
             try:
                 default_scope = self.config_manager.get_default_scope()
             except:

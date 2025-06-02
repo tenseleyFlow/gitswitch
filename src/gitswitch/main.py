@@ -73,13 +73,15 @@ class GitSwitchCLI:
             print(f"[ERROR] Error during account switching: {e}")
             return False
 
-    def _switch_to_account(self, identifier: str, scope_override: Optional[str] = None, accounts: Optional[Dict] = None) -> bool:
+    def _switch_to_account(
+        self, identifier: str, scope_override: Optional[str] = None, accounts: Optional[Dict] = None
+    ) -> bool:
         """Switch to a specific account using direct manager calls."""
         try:
             # Use provided accounts or fetch if not provided
             if accounts is None:
                 accounts = self.account_manager.get_accounts()
-            
+
             # Get account directly (now using the updated method signature)
             account_num, account_data = self.account_manager.get_account(identifier, accounts)
 
@@ -111,7 +113,7 @@ class GitSwitchCLI:
                     accounts = self.account_manager.get_accounts()
                 except:
                     accounts = {}
-            
+
             if accounts:
                 print("\nAvailable accounts:")
                 self.display.show_accounts(accounts)

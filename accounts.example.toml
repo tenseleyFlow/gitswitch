@@ -1,0 +1,35 @@
+# ~/.config/gitswitch/accounts.toml
+# Sample Gitswitch configuration
+
+[settings]
+# Default scope for account switching: "local" (per repository) or "global" (user-wide)
+default_scope = "local"
+
+[accounts.1]
+name = "Jane Doe"
+email = "jane.personal@email.com"
+description = "Personal GitHub"
+preferred_scope = "local"
+gpg_key = "1234ABCD5678EFGH"  # Your GPG key ID for this identity (optional)
+signing_enabled = true
+ssh_key = "~/.ssh/id_ed25519"
+ssh_host = ""
+
+[accounts.2]
+name = "Jane Doe"
+email = "jane@workdomain.com"
+description = "Work GitHub"
+preferred_scope = "global"
+gpg_key = "ABCD1234EFGH5678"
+signing_enabled = true
+ssh_key = "~/.ssh/id_rsa_work"
+ssh_host = "github.com-work"    # If you use SSH config aliases for work account
+
+[accounts.3]
+name = "Jane Doe FOSS"
+email = "foss.jane@gmail.com"
+description = "Open Source contributions"
+preferred_scope = "local"
+signing_enabled = false
+ssh_key = ""
+ssh_host = ""

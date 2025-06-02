@@ -1,218 +1,225 @@
-"""Git command operations for gitswitch."""
+"""Git operations for gitswitch."""
 
-import subprocess
-import re
+import logging
+import os
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
+from .constants import VALID_SCOPES
+from .exceptions import GitOperationError
+from .utils import run_command_safe
 
-def run_git_command(command, scope=None):
-    """Run a git command and return the result"""
-    # Add scope flag if specified
-    if scope == "global":
-        command = command.replace("git config", "git config --global")
-    elif scope == "local":
-        command = command.replace("git config", "git config --local")
-    # If scope is None, use git's default behavior
-
-    try:
-        result = subprocess.run(command, shell=True,
-                                capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        print(f"Error running command: {command}")
-        print(f"Error: {e.stderr}")
-        return None
+logger = logging.getLogger(__name__)
 
 
-def run_git_command_silent(command):
-    """Run a git command silently (don't print errors)"""
-    try:
-        result = subprocess.run(command, shell=True,
-                                capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        # Silently return None if command fails (e.g., config doesn't exist)
-        return None
+class GitOperations:
+    """Git operations manager."""
 
+    def run_git_command(self, command: str, scope: str = None, silent: bool = False) -> Optional[str]:
+        """Run a git command with proper scope handling."""
+        # Add scope flag if specified
+        if scope in VALID_SCOPES:
+            command = command.replace("git config", f"git config --{scope}")
 
-def validate_gpg_key(key_id):
-    """Validate that a GPG key exists and is usable"""
-    if not key_id:
-        return False, "No key ID provided"
+        success, stdout, stderr = run_command_safe(command, silent=silent)
 
-    try:
-        # Check if key exists in secret keyring
-        result = subprocess.run(
-            f"gpg --list-secret-keys --keyid-format=long {key_id}",
-            shell=True, capture_output=True, text=True, check=True
-        )
+        if not success:
+            if silent:
+                return None
+            raise GitOperationError(f"Git command failed: {command}\nError: {stderr}")
 
-        if key_id in result.stdout:
-            return True, "GPG key is valid"
-        else:
-            return False, f"GPG key {key_id} not found in secret keyring"
+        return stdout
 
-    except subprocess.CalledProcessError:
-        return False, f"GPG key {key_id} not found or invalid"
+    def get_current_config(self, scope: str = None) -> Tuple[Optional[str], Optional[str]]:
+        """Get current git user configuration."""
+        scope_flag = f"--{scope}" if scope in VALID_SCOPES else ""
 
+        name = self.run_git_command(f"git config {scope_flag} user.name".strip(), silent=True)
+        email = self.run_git_command(f"git config {scope_flag} user.email".strip(), silent=True)
 
-def clear_local_git_config():
-    """Clear local git configuration to allow global settings to take effect"""
-    configs_to_clear = [
-        "user.name",
-        "user.email", 
-        "user.signingkey",
-        "commit.gpgsign",
-        "tag.gpgsign"
-    ]
+        return name, email
 
-    cleared = []
-    for config in configs_to_clear:
-        # Check if local config exists (SILENTLY)
-        result = run_git_command_silent(f"git config --local {config}")
-        if result:  # Config exists locally
-            # Unset it
-            unset_result = run_git_command_silent(f"git config --local --unset {config}")
-            if unset_result is not None:  # Successful unset (or at least didn't fail)
-                cleared.append(config)
+    def get_gpg_config(self, scope: str = None) -> Dict[str, any]:
+        """Get current GPG configuration."""
+        scope_flag = f"--{scope}" if scope in VALID_SCOPES else ""
 
-    return cleared
+        signing_key = self.run_git_command(f"git config {scope_flag} user.signingkey".strip(), silent=True)
+        commit_sign = self.run_git_command(f"git config {scope_flag} commit.gpgsign".strip(), silent=True)
+        tag_sign = self.run_git_command(f"git config {scope_flag} tag.gpgsign".strip(), silent=True)
 
-
-def get_current_config(scope=None):
-    """Get current git user configuration"""
-    scope_flag = ""
-    if scope == "global":
-        scope_flag = " --global"
-    elif scope == "local":
-        scope_flag = " --local"
-
-    name = run_git_command_silent(f"git config{scope_flag} user.name")
-    email = run_git_command_silent(f"git config{scope_flag} user.email")
-    return name, email
-
-
-def get_gpg_config(scope=None):
-    """Get current GPG configuration"""
-    scope_flag = ""
-    if scope == "global":
-        scope_flag = " --global"
-    elif scope == "local":
-        scope_flag = " --local"
-
-    signing_key = run_git_command_silent(f"git config{scope_flag} user.signingkey")
-    commit_sign = run_git_command_silent(f"git config{scope_flag} commit.gpgsign")
-    tag_sign = run_git_command_silent(f"git config{scope_flag} tag.gpgsign")
-
-    return {
-        "signing_key": signing_key,
-        "commit_gpgsign": commit_sign == "true",
-        "tag_gpgsign": tag_sign == "true"
-    }
-
-
-def set_git_config(account_info, scope="local"):
-    """Set git user configuration with specified scope"""
-    scope_flag = f"--{scope}" if scope in ["global", "local"] else ""
-
-    # If setting global scope, clear local configs first
-    if scope == "global":
-        cleared_configs = clear_local_git_config()
-        if cleared_configs:
-            print(f"🧹 Cleared local git config: {', '.join(cleared_configs)}")
-            print("   (This allows global settings to take effect)")
-
-    name_cmd = f'git config {scope_flag} user.name "{account_info["name"]}"'.strip()
-    email_cmd = f'git config {scope_flag} user.email "{account_info["email"]}"'.strip()
-
-    success = True
-
-    # Set basic user config
-    name_result = run_git_command_silent(name_cmd)
-    email_result = run_git_command_silent(email_cmd)
-
-    if name_result is None or email_result is None:
-        print("❌ Failed to set basic git configuration")
-        return False
-
-    # Handle GPG configuration
-    gpg_key = account_info.get("gpg_key")
-    signing_enabled = account_info.get("signing_enabled", False)
-
-    if gpg_key and signing_enabled:
-        # Validate GPG key exists
-        is_valid, message = validate_gpg_key(gpg_key)
-        if not is_valid:
-            print(f"⚠️  GPG Warning: {message}")
-            print("   Proceeding without GPG signing...")
-            success = set_gpg_config_disabled(scope_flag)
-        else:
-            success = set_gpg_config_enabled(gpg_key, scope_flag)
-    else:
-        # Disable or don't set GPG signing
-        success = set_gpg_config_disabled(scope_flag)
-
-    if success:
-        scope_text = f" ({scope})" if scope else ""
-        print(f"✅ Successfully switched to: {account_info['description']}{scope_text}")
-        print(f"   Name: {account_info['name']}")
-        print(f"   Email: {account_info['email']}")
-        print(f"   Scope: {scope}")
-
-        # Show GPG status
-        if gpg_key and signing_enabled:
-            print(f"   GPG Key: {gpg_key}")
-            print(f"   GPG Signing: {'✅ Enabled' if signing_enabled else '❌ Disabled'}")
-        else:
-            print("   GPG Signing: ❌ Disabled")
-
-        return True
-    else:
-        print("❌ Failed to set git configuration")
-        return False
-
-
-def set_gpg_config_enabled(gpg_key, scope_flag):
-    """Enable GPG signing with specified key"""
-    key_cmd = f'git config {scope_flag} user.signingkey "{gpg_key}"'.strip()
-    commit_sign_cmd = f'git config {scope_flag} commit.gpgsign true'.strip()
-    tag_sign_cmd = f'git config {scope_flag} tag.gpgsign true'.strip()
-
-    key_result = run_git_command_silent(key_cmd)
-    commit_result = run_git_command_silent(commit_sign_cmd)
-    tag_result = run_git_command_silent(tag_sign_cmd)
-
-    return (key_result is not None and
-            commit_result is not None and
-            tag_result is not None)
-
-
-def set_gpg_config_disabled(scope_flag):
-    """Disable GPG signing"""
-    commit_sign_cmd = f'git config {scope_flag} commit.gpgsign false'.strip()
-    tag_sign_cmd = f'git config {scope_flag} tag.gpgsign false'.strip()
-
-    commit_result = run_git_command_silent(commit_sign_cmd)
-    tag_result = run_git_command_silent(tag_sign_cmd)
-
-    return (commit_result is not None and tag_result is not None)
-
-
-def get_git_scope_info():
-    """Get information about current git configuration scope"""
-    global_name, global_email = get_current_config("global")
-    local_name, local_email = get_current_config("local")
-    global_gpg = get_gpg_config("global")
-    local_gpg = get_gpg_config("local")
-
-    return {
-        "global": {
-            "name": global_name,
-            "email": global_email,
-            "gpg": global_gpg
-        },
-        "local": {
-            "name": local_name,
-            "email": local_email,
-            "gpg": local_gpg
+        return {
+            "signing_key": signing_key,
+            "commit_gpgsign": commit_sign == "true",
+            "tag_gpgsign": tag_sign == "true",
         }
-    }
+
+    def get_ssh_config(self) -> Dict[str, Optional[str]]:
+        """Get current SSH configuration."""
+        return {
+            "git_ssh_command": os.environ.get("GIT_SSH_COMMAND"),
+            "ssh_auth_sock": os.environ.get("SSH_AUTH_SOCK"),
+        }
+
+    def clear_local_git_config(self) -> list:
+        """Clear local git configuration to allow global settings to take effect."""
+        configs_to_clear = [
+            "user.name",
+            "user.email",
+            "user.signingkey",
+            "commit.gpgsign",
+            "tag.gpgsign",
+        ]
+
+        cleared = []
+        for config in configs_to_clear:
+            # Check if local config exists
+            result = self.run_git_command(f"git config --local {config}", silent=True)
+            if result:  # Config exists locally
+                try:
+                    self.run_git_command(f"git config --local --unset {config}")
+                    cleared.append(config)
+                    logger.debug(f"Cleared local config: {config}")
+                except GitOperationError:
+                    logger.warning(f"Failed to clear local config: {config}")
+
+        return cleared
+
+    def set_basic_config(self, name: str, email: str, scope: str) -> bool:
+        """Set basic git user configuration."""
+        try:
+            self.run_git_command(f'git config --{scope} user.name "{name}"')
+            self.run_git_command(f'git config --{scope} user.email "{email}"')
+            logger.info(f"Set git user config ({scope}): {name} <{email}>")
+            return True
+        except GitOperationError as e:
+            logger.error(f"Failed to set basic git config: {e}")
+            return False
+
+    def set_gpg_config(self, gpg_key: str, signing_enabled: bool, scope: str) -> bool:
+        """Set GPG configuration."""
+        try:
+            if gpg_key and signing_enabled:
+                # Enable GPG signing
+                self.run_git_command(f'git config --{scope} user.signingkey "{gpg_key}"')
+                self.run_git_command(f"git config --{scope} commit.gpgsign true")
+                self.run_git_command(f"git config --{scope} tag.gpgsign true")
+                logger.info(f"Enabled GPG signing ({scope}): {gpg_key}")
+            else:
+                # Disable GPG signing
+                self.run_git_command(f"git config --{scope} commit.gpgsign false")
+                self.run_git_command(f"git config --{scope} tag.gpgsign false")
+                logger.debug(f"Disabled GPG signing ({scope})")
+
+            return True
+
+        except GitOperationError as e:
+            logger.error(f"Failed to set GPG config: {e}")
+            return False
+
+    def set_ssh_config(self, ssh_key: str, ssh_host: str = None) -> Tuple[bool, str]:
+        """Set SSH configuration."""
+        if not ssh_key or not ssh_key.strip():
+            # Clear SSH configuration
+            if "GIT_SSH_COMMAND" in os.environ:
+                del os.environ["GIT_SSH_COMMAND"]
+            return True, "SSH configuration cleared"
+
+        # Expand user path
+        key_path = Path(ssh_key).expanduser()
+
+        # Build SSH command
+        ssh_command = f"ssh -i {key_path}"
+
+        # Add host-specific configuration if provided
+        if ssh_host and ssh_host.strip():
+            ssh_command += " -o 'UserKnownHostsFile=/dev/null' -o 'StrictHostKeyChecking=no'"
+
+        # Set environment variable
+        os.environ["GIT_SSH_COMMAND"] = ssh_command
+
+        logger.info(f"Set SSH configuration: {ssh_command}")
+        return True, f"SSH configured: {ssh_command}"
+
+    def set_git_config(self, account_info: dict, scope: str = "local") -> bool:
+        """Set complete git configuration for an account."""
+        if scope not in VALID_SCOPES:
+            logger.error(f"Invalid scope: {scope}")
+            return False
+
+        success = True
+
+        # If setting global scope, clear local configs first
+        if scope == "global":
+            cleared_configs = self.clear_local_git_config()
+            if cleared_configs:
+                logger.info(f"Cleared local git config: {', '.join(cleared_configs)}")
+
+        # Set basic user config
+        if not self.set_basic_config(account_info["name"], account_info["email"], scope):
+            success = False
+
+        # Set GPG configuration
+        gpg_key = account_info.get("gpg_key", "").strip()
+        signing_enabled = account_info.get("signing_enabled", False)
+
+        if not self.set_gpg_config(gpg_key, signing_enabled, scope):
+            success = False
+
+        # Set SSH configuration
+        ssh_key = account_info.get("ssh_key", "").strip()
+        ssh_host = account_info.get("ssh_host", "").strip()
+
+        ssh_success, ssh_message = self.set_ssh_config(ssh_key, ssh_host)
+        if not ssh_success:
+            logger.warning(f"SSH configuration failed: {ssh_message}")
+            # Don't fail the entire operation for SSH issues
+
+        if success:
+            logger.info(f"Successfully configured git for: {account_info['description']} ({scope})")
+
+        return success
+
+    def get_git_scope_info(self) -> dict:
+        """Get git configuration scope information."""
+        return {
+            "global": {
+                "name": self.get_current_config("global")[0],
+                "email": self.get_current_config("global")[1],
+                "gpg": self.get_gpg_config("global"),
+            },
+            "local": {
+                "name": self.get_current_config("local")[0],
+                "email": self.get_current_config("local")[1],
+                "gpg": self.get_gpg_config("local"),
+            },
+            "ssh": self.get_ssh_config(),
+        }
+
+    def is_git_repository(self) -> bool:
+        """Check if current directory is a git repository."""
+        result = self.run_git_command("git rev-parse --git-dir", silent=True)
+        return result is not None
+
+    def get_repository_info(self) -> dict:
+        """Get information about the current git repository."""
+        if not self.is_git_repository():
+            return {"is_repo": False}
+
+        repo_info = {"is_repo": True}
+
+        # Get repository path
+        git_dir = self.run_git_command("git rev-parse --git-dir", silent=True)
+        if git_dir:
+            repo_info["git_dir"] = git_dir
+
+        # Get current branch
+        branch = self.run_git_command("git branch --show-current", silent=True)
+        if branch:
+            repo_info["current_branch"] = branch
+
+        # Get remote origin URL
+        origin_url = self.run_git_command("git config --get remote.origin.url", silent=True)
+        if origin_url:
+            repo_info["origin_url"] = origin_url
+
+        return repo_info

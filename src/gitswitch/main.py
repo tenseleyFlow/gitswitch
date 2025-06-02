@@ -3,7 +3,7 @@
 import argparse
 import logging
 import sys
-from typing import Optional
+from typing import Optional, Dict
 
 from .config import ConfigManager
 from .accounts import AccountManager
@@ -34,7 +34,7 @@ class GitSwitchCLI:
             print("🔄 Git Account Switcher 🔄")
             print(SEPARATOR_SHORT)
 
-            # Load accounts directly
+            # Load accounts once and reuse
             try:
                 accounts = self.account_manager.get_accounts()
             except Exception as e:
@@ -46,9 +46,9 @@ class GitSwitchCLI:
                 print("   Run 'gitswitch add' to create your first account")
                 return False
 
-            # Show current config and accounts
+            # Show current config and accounts using loaded data
             self.display.show_current_config()
-            self.display.show_accounts(accounts)
+            self.display.show_accounts(accounts)  # Pass accounts to avoid reload
             self.display.show_config_location()
 
             # Get user choice
@@ -62,7 +62,7 @@ class GitSwitchCLI:
                 return True
 
             # Switch to account directly
-            return self._switch_to_account(choice, scope_override)
+            return self._switch_to_account(choice, scope_override, accounts)
 
         except KeyboardInterrupt:
             print("\n👋 Goodbye!")
@@ -72,11 +72,15 @@ class GitSwitchCLI:
             print(f"❌ Error during account switching: {e}")
             return False
 
-    def _switch_to_account(self, identifier: str, scope_override: Optional[str] = None) -> bool:
+    def _switch_to_account(self, identifier: str, scope_override: Optional[str] = None, accounts: Optional[Dict] = None) -> bool:
         """Switch to a specific account using direct manager calls."""
         try:
-            # Get account directly
-            account_num, account_data = self.account_manager.get_account(identifier)
+            # Use provided accounts or fetch if not provided
+            if accounts is None:
+                accounts = self.account_manager.get_accounts()
+            
+            # Get account directly (now using the updated method signature)
+            account_num, account_data = self.account_manager.get_account(identifier, accounts)
 
             # Validate account data
             is_valid, errors, warnings = self.validation_service.validate_account(account_data)
@@ -100,14 +104,16 @@ class GitSwitchCLI:
         except AccountNotFoundError as e:
             print(f"❌ {e}")
 
-            # Show available accounts to help user
-            try:
-                accounts = self.account_manager.get_accounts()
-                if accounts:
-                    print("\nAvailable accounts:")
-                    self.display.show_accounts(accounts)
-            except:
-                pass
+            # Show available accounts to help user (reuse accounts if available)
+            if accounts is None:
+                try:
+                    accounts = self.account_manager.get_accounts()
+                except:
+                    accounts = {}
+            
+            if accounts:
+                print("\nAvailable accounts:")
+                self.display.show_accounts(accounts)
 
             return False
 

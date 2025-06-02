@@ -6,7 +6,15 @@ This is a little tool I use to manage and switch between git configs quicker as 
 Reads account details from a toml file in $HOME/.config/gitswitch/accounts.toml
 
 Installation:
-clone this repo and `cd` into it. From there run: `pip install -e .` and `gitswitch` is available in that environment[^1].  
+~~clone this repo and `cd` into it. From there run: `pip install -e .` and `gitswitch` is available in that environment[^1].~~  
+Just use the makefile:
+```
+  make install      - pip install -e . && asdf reshim python
+  make uninstall    - pip uninstall gitswitch
+  make clean        - rm -rf **/*/*.egg-info
+  make reshim       - asdf reshim python
+  make reinstall    - Uninstall, clean, then install & reshim
+```
 
 Example usage:
 ```

@@ -11,6 +11,6 @@ VALID_SCOPES = ["local", "global"]
 REQUIRED_ACCOUNT_FIELDS = ["name", "email", "description"]
 
 # Messages that are reused
-MSG_NO_ACCOUNTS = "⚠️  No valid accounts found in configuration file!"
-ERR_EMPTY_NAME = "❌ Name cannot be empty"
-ERR_INVALID_EMAIL = "❌ Please enter a valid email address"
+MSG_NO_ACCOUNTS = "[WARN] No valid accounts found in configuration file!"
+ERR_EMPTY_NAME = "[ERROR] Name cannot be empty"
+ERR_INVALID_EMAIL = "[ERROR] Please enter a valid email address"

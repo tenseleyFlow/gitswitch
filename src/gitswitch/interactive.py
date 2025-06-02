@@ -89,8 +89,8 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
             gpg_key = current.get("gpg_key", "")
 
         if gpg_key:
-            # Quick validation
-            if validation_service._check_gpg_key(gpg_key):
+            # Quick validation using correct method name
+            if validation_service._check_gpg_key_safe(gpg_key):
                 account_data["gpg_key"] = gpg_key
                 account_data["signing_enabled"] = True
                 key_info = validation_service.get_gpg_key_info(gpg_key)
@@ -131,8 +131,8 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
             ssh_key = current.get("ssh_key", "")
 
         if ssh_key:
-            # Quick validation
-            if validation_service._check_ssh_key(ssh_key):
+            # Quick validation using correct method name
+            if validation_service._check_ssh_key_safe(ssh_key):
                 account_data["ssh_key"] = ssh_key
                 key_info = validation_service.get_ssh_key_info(ssh_key)
                 print(f"✅ {key_info}")

@@ -38,9 +38,10 @@ class AccountManager:
 
         return self._accounts_cache.copy()
 
-    def get_account(self, identifier) -> Tuple[int, dict]:
-        """Get account by number or search term."""
-        accounts = self.get_accounts()
+    def get_account(self, identifier, accounts: Dict[int, dict] = None) -> Tuple[int, dict]:
+        """Get account by number or search term from provided accounts dict or load if needed."""
+        if accounts is None:
+            accounts = self.get_accounts()
 
         # Try numeric lookup first
         try:

@@ -117,65 +117,57 @@ class DisplayManager:
             logger.error(f"Error displaying current config: {e}")
             print("\n⚠️  Error reading current git configuration")
 
+    def _format_config_scope(self, scope_name: str, config: dict) -> str:
+        """Format a single configuration scope for display."""
+        if not config["name"] or not config["email"]:
+            return f"{scope_name}: Not set"
+        
+        lines = [
+            f"{scope_name}:",
+            f"   Name: {config['name']}",
+            f"   Email: {config['email']}"
+        ]
+        
+        gpg = config["gpg"]
+        if gpg["signing_key"]:
+            commit_status = "✅ Enabled" if gpg["commit_gpgsign"] else "⚠️  Disabled"
+            tag_status = "✅ Enabled" if gpg["tag_gpgsign"] else "⚠️  Disabled"
+            lines.extend([
+                f"   GPG Key: {gpg['signing_key']}",
+                f"   GPG Commit Signing: {commit_status}",
+                f"   GPG Tag Signing: {tag_status}"
+            ])
+        else:
+            lines.append("   GPG Signing: ❌ Not configured")
+        
+        return "\n".join(lines)
+
     def show_scope_status(self):
         """Show detailed scope information with inline scope display."""
         try:
             print("\n🎯 Git Configuration Scope Status 🎯")
             print(SEPARATOR_LONG)
 
-            # Get scope info directly
             scope_info = self.git_ops.get_git_scope_info()
-
-            # Get default scope from config
+            
             try:
                 default_scope = self.config_manager.get_default_scope()
             except:
                 default_scope = DEFAULT_SCOPE
 
-            print(f"Default scope: {default_scope}")
+            print(f"Default scope: {default_scope}\n")
+
+            # Show configurations using helper method
+            print("🌍", self._format_config_scope("Global Configuration", scope_info["global"]))
+            print()
+            
+            local_display = self._format_config_scope("Local Configuration", scope_info["local"])
+            if not scope_info["local"]["name"]:
+                local_display += " - using global"
+            print("📁", local_display)
             print()
 
-            # Show global config (inline instead of helper method)
-            global_config = scope_info["global"]
-            if global_config["name"] and global_config["email"]:
-                print("🌍 Global Configuration:")
-                print(f"   Name: {global_config['name']}")
-                print(f"   Email: {global_config['email']}")
-
-                gpg = global_config["gpg"]
-                if gpg["signing_key"]:
-                    commit_status = "✅ Enabled" if gpg["commit_gpgsign"] else "⚠️  Disabled"
-                    tag_status = "✅ Enabled" if gpg["tag_gpgsign"] else "⚠️  Disabled"
-                    print(f"   GPG Key: {gpg['signing_key']}")
-                    print(f"   GPG Commit Signing: {commit_status}")
-                    print(f"   GPG Tag Signing: {tag_status}")
-                else:
-                    print("   GPG Signing: ❌ Not configured")
-            else:
-                print("🌍 Global Configuration: Not set")
-            print()
-
-            # Show local config (inline instead of helper method)
-            local_config = scope_info["local"]
-            if local_config["name"] and local_config["email"]:
-                print("📁 Local Configuration:")
-                print(f"   Name: {local_config['name']}")
-                print(f"   Email: {local_config['email']}")
-
-                gpg = local_config["gpg"]
-                if gpg["signing_key"]:
-                    commit_status = "✅ Enabled" if gpg["commit_gpgsign"] else "⚠️  Disabled"
-                    tag_status = "✅ Enabled" if gpg["tag_gpgsign"] else "⚠️  Disabled"
-                    print(f"   GPG Key: {gpg['signing_key']}")
-                    print(f"   GPG Commit Signing: {commit_status}")
-                    print(f"   GPG Tag Signing: {tag_status}")
-                else:
-                    print("   GPG Signing: ❌ Not configured")
-            else:
-                print("📁 Local Configuration: Not set using global")
-            print()
-
-            # Show SSH info
+            # SSH info (this is unique enough to keep inline)
             ssh_config = scope_info["ssh"]
             print("🔑 SSH Configuration:")
             if ssh_config["git_ssh_command"]:
@@ -188,7 +180,7 @@ class DisplayManager:
                 if ssh_config["ssh_auth_sock"]:
                     print(f"   Auth Socket: {ssh_config['ssh_auth_sock']}")
 
-            # Show repository information
+            # Repository information
             repo_info = self.git_ops.get_repository_info()
             if repo_info["is_repo"]:
                 print(f"\n📂 Repository Information:")

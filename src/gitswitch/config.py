@@ -14,7 +14,8 @@ except ImportError:
 try:
     import tomli_w
 except ImportError:
-    print("[ERROR] tomli_w is required for configuration management")
+    from .colors import format_status
+    print(format_status("[ERROR] tomli_w is required for configuration management"))
     print("   Install with: pip install tomli_w")
     sys.exit(1)
 

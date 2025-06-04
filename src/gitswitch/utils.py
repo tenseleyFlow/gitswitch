@@ -250,7 +250,8 @@ def safe_input(prompt: str, default: str = None) -> str:
 
         return result
     except (KeyboardInterrupt, EOFError):
-        print("\n[CANCELLED] Input cancelled")
+        from .colors import format_status
+        print(format_status("\n[CANCELLED] Input cancelled"))
         raise KeyboardInterrupt()
 
 

@@ -1,4 +1,3 @@
-# colors.py
 """Color utility for gitswitch output."""
 
 import os
@@ -13,11 +12,11 @@ class Colors:
     BOLD = "\033[1m"
 
     # Status colors
-    SUCCESS = "\033[92m"  # Bright green
-    ERROR = "\033[91m"  # Bright red
-    WARNING = "\033[93m"  # Bright yellow
-    INFO = "\033[94m"  # Bright blue
-    DISABLED = "\033[90m"  # Gray
+    SUCCESS = "\033[92m"    # Bright green
+    ERROR = "\033[91m"      # Bright red
+    WARNING = "\033[93m"    # Bright yellow
+    INFO = "\033[94m"       # Bright blue
+    DISABLED = "\033[90m"   # Gray
 
     # Special colors
     HEADER = "\033[95m"  # Magenta
@@ -90,6 +89,7 @@ def format_status(text: str) -> str:
         "[OK]": _formatter.success,
         "[SUCCESS]": _formatter.success,
         "[ENABLED]": _formatter.success,
+        "[CONFIGURED]": _formatter.success,
         "[FAIL]": _formatter.error,
         "[ERROR]": _formatter.error,
         "[WARN]": _formatter.warning,
@@ -99,10 +99,12 @@ def format_status(text: str) -> str:
         "[CANCELLED]": _formatter.disabled,
         "[NOT SET]": _formatter.disabled,
         "[NOT CONFIGURED]": _formatter.disabled,
+        "[NOT FOUND]": _formatter.warning,
         "[CUSTOM SSH ACTIVE]": _formatter.success,
         "[SYSTEM DEFAULT SSH]": _formatter.info,
-        "[NOT FOUND]": _formatter.warning,
+        "[SYSTEM DEFAULT]": _formatter.info,
         "[NOT IN GIT REPOSITORY]": _formatter.disabled,
+        "[NOT SET - using global]": _formatter.disabled,
     }
 
     result = text

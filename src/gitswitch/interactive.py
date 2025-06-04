@@ -195,7 +195,8 @@ def ask_yes_no(question: str, default: Optional[bool] = None) -> bool:
                 print("Please enter 'y' or 'n'")
         except KeyboardInterrupt:
             print(format_status("\n[CANCELLED]"))
-            return False
+            # Return the default instead of affecting parent function
+            return default if default is not None else False
 
 
 def display_account_summary(account_data: dict):
@@ -243,7 +244,7 @@ def add_account_interactive(account_manager, validation_service, git_ops) -> boo
 
         if not ask_yes_no("Create this account?", default=True):
             print(format_status("[CANCELLED] Account creation cancelled"))
-            return False
+            return True  # User cancellation is success
 
         # Validate
         is_valid, errors, warnings = validation_service.validate_account(account_data)
@@ -251,9 +252,13 @@ def add_account_interactive(account_manager, validation_service, git_ops) -> boo
             print(format_status(f"[ERROR] Account validation failed: {'; '.join(errors)}"))
             return False
 
-        # Add account
-        account_num = account_manager.add_account(account_data)
-        print(format_status(f"\n[SUCCESS] Successfully added account #{account_num}:"))
+        # Add account using new tuple-returning method
+        success, account_num, add_message = account_manager.add_account(account_data)
+        if not success:
+            print(format_status(f"[ERROR] {add_message}"))
+            return False
+        
+        print(format_status(f"\n[SUCCESS] {add_message}"))
         display_account_summary(account_data)
 
         # Offer to switch
@@ -268,7 +273,7 @@ def add_account_interactive(account_manager, validation_service, git_ops) -> boo
 
     except KeyboardInterrupt:
         print(format_status("\n[CANCELLED] Account creation cancelled"))
-        return False
+        return True  # Ctrl+C is success
     except Exception as e:
         logger.error(f"Account creation failed: {e}")
         print(format_status(f"[ERROR] Error creating account: {e}"))
@@ -281,14 +286,17 @@ def edit_account_interactive(account_manager, validation_service, identifier: Op
     print(SEPARATOR_SHORT)
 
     try:
-        # Get account
+        # Get account using new tuple-returning method
         if not identifier:
             identifier = safe_input("Enter account number or search term: ")
             if not identifier:
-                print(format_status("[ERROR] No identifier provided"))
-                return False
+                print(format_status("[CANCELLED] No identifier provided"))
+                return True  # Empty input is user cancellation (success)
 
-        account_num, account = account_manager.get_account(identifier)
+        success, account_num, account, get_message = account_manager.get_account(identifier)
+        if not success:
+            print(format_status(f"[ERROR] {get_message}"))
+            return False
 
         print(f"\n-- {format_header(f'Editing Account #{account_num}')}: {account['description']} --")
         print(SEPARATOR_MEDIUM)
@@ -298,7 +306,7 @@ def edit_account_interactive(account_manager, validation_service, identifier: Op
         # Collect updates
         updated_account = collect_account_info(validation_service, account)
         if not updated_account:
-            return False
+            return True  # User cancellation during input is success
 
         # Check for changes (simple comparison)
         if updated_account == account:
@@ -312,7 +320,7 @@ def edit_account_interactive(account_manager, validation_service, identifier: Op
 
         if not ask_yes_no("Save these changes?", default=True):
             print(format_status("[CANCELLED] Changes cancelled"))
-            return False
+            return True  # User cancellation is success
 
         # Validate
         is_valid, errors, warnings = validation_service.validate_account(updated_account)
@@ -320,9 +328,13 @@ def edit_account_interactive(account_manager, validation_service, identifier: Op
             print(format_status(f"[ERROR] Account validation failed: {'; '.join(errors)}"))
             return False
 
-        # Update account
-        account_manager.update_account(account_num, updated_account)
-        print(format_status(f"\n[SUCCESS] Successfully updated account #{account_num}"))
+        # Update account using new tuple-returning method
+        success, update_message = account_manager.update_account(account_num, updated_account)
+        if not success:
+            print(format_status(f"[ERROR] {update_message}"))
+            return False
+
+        print(format_status(f"\n[SUCCESS] {update_message}"))
 
         if warnings:
             print(format_status("\n[WARN] Warnings:"))
@@ -333,10 +345,7 @@ def edit_account_interactive(account_manager, validation_service, identifier: Op
 
     except KeyboardInterrupt:
         print(format_status("\n[CANCELLED] Editing cancelled"))
-        return False
-    except AccountNotFoundError as e:
-        print(format_status(f"[ERROR] {e}"))
-        return False
+        return True  # Ctrl+C is success
     except Exception as e:
         logger.error(f"Account editing failed: {e}")
         print(format_status(f"[ERROR] Error editing account: {e}"))
@@ -351,24 +360,27 @@ def remove_account_interactive(account_manager, display_manager, identifier: Opt
     try:
         # Get account to remove
         if not identifier:
-            try:
-                accounts = account_manager.get_accounts()
-                if not accounts:
-                    print("No accounts to remove.")
-                    return True
-
-                display_manager.show_accounts(accounts)
-
-                identifier = safe_input("Enter account number or search term to remove (or 'q' to cancel): ")
-                if not identifier or identifier.lower() == "q":
-                    print(format_status("[CANCELLED] Removal cancelled"))
-                    return False
-            except Exception as e:
-                print(format_status(f"[ERROR] Error loading accounts: {e}"))
+            success, accounts, load_message = account_manager.get_accounts()
+            if not success:
+                print(format_status(f"[ERROR] Error loading accounts: {load_message}"))
                 return False
+                
+            if not accounts:
+                print("No accounts to remove.")
+                return True  # Nothing to remove is success
 
-        # Get account info
-        account_num, account = account_manager.get_account(identifier)
+            display_manager.show_accounts(accounts)
+
+            identifier = safe_input("Enter account number or search term to remove (or 'q' to cancel): ")
+            if not identifier or identifier.lower() == "q":
+                print(format_status("[CANCELLED] Removal cancelled"))
+                return True  # User cancellation is success
+
+        # Get account info using new tuple-returning method
+        success, account_num, account, get_message = account_manager.get_account(identifier)
+        if not success:
+            print(format_status(f"[ERROR] {get_message}"))
+            return False
 
         # Confirm removal
         print(format_status(f"\n[WARN] About to remove account #{account_num}:"))
@@ -377,19 +389,20 @@ def remove_account_interactive(account_manager, display_manager, identifier: Opt
 
         if not ask_yes_no("Are you sure you want to remove this account?", default=False):
             print(format_status("[CANCELLED] Removal cancelled"))
+            return True  # User cancellation is success
+
+        # Remove account using new tuple-returning method
+        success, remove_message = account_manager.remove_account(account_num)
+        if not success:
+            print(format_status(f"[ERROR] {remove_message}"))
             return False
 
-        # Remove account
-        account_manager.remove_account(account_num)
-        print(format_status(f"[SUCCESS] Successfully removed account #{account_num}"))
+        print(format_status(f"[SUCCESS] {remove_message}"))
         return True
 
     except KeyboardInterrupt:
         print(format_status("\n[CANCELLED] Removal cancelled"))
-        return False
-    except AccountNotFoundError as e:
-        print(format_status(f"[ERROR] {e}"))
-        return False
+        return True  # Ctrl+C is success
     except Exception as e:
         logger.error(f"Account removal failed: {e}")
         print(format_status(f"[ERROR] Error removing account: {e}"))
@@ -416,14 +429,19 @@ def edit_config_file_interactive(config_manager) -> bool:
     # Create backup
     try:
         if config_manager.config_exists():
-            backup_path = config_manager.backup_config()
-            print(format_status(f"[INFO] Backup created: {backup_path}"))
+            success, backup_path, backup_message = config_manager.backup_config()
+            if success:
+                print(format_status(f"[INFO] {backup_message}"))
+            else:
+                print(format_status(f"[WARN] Could not create backup: {backup_message}"))
+                if not ask_yes_no("Continue without backup?", default=False):
+                    return True  # User cancellation is success
         else:
             print(format_status("[INFO] No existing config to backup"))
     except Exception as e:
         print(format_status(f"[WARN] Could not create backup: {e}"))
         if not ask_yes_no("Continue without backup?", default=False):
-            return False
+            return True  # User cancellation is success
 
     # Edit with validation
     while True:
@@ -432,16 +450,14 @@ def edit_config_file_interactive(config_manager) -> bool:
 
             print(f"\n>> {format_header('Validating configuration')}...")
 
-            try:
-                config = config_manager.load_config(force_reload=True)
+            success, config, load_message = config_manager.load_config(force_reload=True)
+            if success:
                 print(format_status("[OK] Configuration is valid!"))
-
                 accounts_count = len(config.get("accounts", {}))
                 print(format_status(f"[INFO] Configuration summary: {accounts_count} account(s)"))
                 return True
-
-            except Exception as e:
-                print(format_status(f"[ERROR] Configuration validation failed: {e}"))
+            else:
+                print(format_status(f"[ERROR] Configuration validation failed: {load_message}"))
                 print()
 
                 choice = safe_input("Edit again (e), restore backup (r), or ignore errors (i)? [e]: ").lower()
@@ -459,7 +475,7 @@ def edit_config_file_interactive(config_manager) -> bool:
             return False
         except KeyboardInterrupt:
             print(format_status("\n[CANCELLED] Editing cancelled"))
-            return False
+            return True  # Ctrl+C is success
         except Exception as e:
             logger.error(f"Config editing failed: {e}")
             print(format_status(f"[ERROR] Error opening editor: {e}"))

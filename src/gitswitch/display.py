@@ -1,7 +1,7 @@
 """Display functions for gitswitch."""
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from .constants import SEPARATOR_LONG, SEPARATOR_MEDIUM, SEPARATOR_SHORT, DEFAULT_SCOPE
 from .colors import format_status, format_header, format_accent
@@ -51,32 +51,33 @@ class DisplayManager:
         self.git_ops = git_ops
         self.validation_service = validation_service
 
-    def show_accounts(self, accounts: Optional[Dict[int, dict]] = None):
-        """Display available accounts in a formatted way."""
+    def show_accounts(self, accounts: Optional[Dict[int, dict]] = None) -> Tuple[bool, str]:
+        """Display available accounts in a formatted way. Returns (success, message)."""
         print(f"\n┌─────────────────────────────────┐")
         print(f"│      {format_header('Available Git Accounts')}     │")
         print(f"└─────────────────────────────────┘")
 
-        # If no accounts provided, fetch them directly
+        # If no accounts provided, fetch them using new tuple method
         if accounts is None:
-            try:
-                accounts = self.account_manager.get_accounts()
-            except Exception as e:
-                print(format_status(f"[ERROR] Error loading accounts: {e}"))
-                return
+            success, accounts, message = self.account_manager.get_accounts()
+            if not success:
+                print(format_status(f"[ERROR] Error loading accounts: {message}"))
+                return False, f"Failed to load accounts: {message}"
 
         if not accounts:
             print("No accounts configured.")
             print("Run 'gitswitch add' to create your first account.")
-            return
+            return True, "No accounts to display"
 
         for num in sorted(accounts.keys()):
             account = accounts[num]
             print(format_account_display(num, account))
             print()  # Empty line between accounts
 
-    def show_current_config(self):
-        """Display current git configuration."""
+        return True, f"Displayed {len(accounts)} accounts successfully"
+
+    def show_current_config(self) -> Tuple[bool, str]:
+        """Display current git configuration. Returns (success, message)."""
         try:
             # Get current config directly
             name, email = self.git_ops.get_current_config()
@@ -111,13 +112,17 @@ class DisplayManager:
                         print(f"   Current Branch: {format_accent(repo_info['current_branch'])}")
                     if "origin_url" in repo_info:
                         print(f"   Repository: {repo_info['origin_url']}")
+                
+                return True, "Current configuration displayed successfully"
             else:
                 print(format_status("\n[WARN] No git configuration found"))
                 print("   Run 'gitswitch list' to see available accounts")
+                return True, "No git configuration found"
 
         except Exception as e:
             logger.error(f"Error displaying current config: {e}")
             print(format_status("\n[WARN] Error reading current git configuration"))
+            return False, f"Error displaying current config: {e}"
 
     def _format_config_scope(self, scope_name: str, config: dict) -> str:
         """Format a single configuration scope for display."""
@@ -142,8 +147,8 @@ class DisplayManager:
 
         return "\n".join(lines)
 
-    def show_scope_status(self):
-        """Show detailed scope information with inline scope display."""
+    def show_scope_status(self) -> Tuple[bool, str]:
+        """Show detailed scope information. Returns (success, message)."""
         try:
             print(f"\n╔══════════════════════════════════════════════════════════╗")
             print(f"║              {format_header('Git Configuration Scope Status')}             ║")
@@ -151,9 +156,10 @@ class DisplayManager:
 
             scope_info = self.git_ops.get_git_scope_info()
 
-            try:
-                default_scope = self.config_manager.get_default_scope()
-            except:
+            # Get default scope using new tuple method
+            scope_success, default_scope, scope_message = self.config_manager.get_default_scope()
+            if not scope_success:
+                logger.warning(f"Could not get default scope: {scope_message}")
                 default_scope = DEFAULT_SCOPE
 
             print(f"Default scope: {format_accent(default_scope)}\n")
@@ -223,28 +229,35 @@ class DisplayManager:
             else:
                 print(f"\n>> Repository: {format_status('[NOT IN GIT REPOSITORY]')}")
 
+            return True, "Scope status displayed successfully"
+
         except Exception as e:
             logger.error(f"Error displaying scope status: {e}")
             print(format_status("[ERROR] Error retrieving scope status"))
+            return False, f"Error displaying scope status: {e}"
 
-    def show_config_location(self):
-        """Show where the config file is located."""
+    def show_config_location(self) -> Tuple[bool, str]:
+        """Show where the config file is located. Returns (success, message)."""
         try:
             config_path = self.config_manager.get_config_path()
             print(f"\n── Config file location: {config_path}")
 
-            # Check config status
+            # Check config status using new tuple method
             if self.config_manager.config_exists():
-                try:
-                    config = self.config_manager.load_config()
+                success, config, load_message = self.config_manager.load_config()
+                if success:
                     accounts_count = len(config.get("accounts", {}))
                     print(f"   Status: {format_status('[OK]')} File exists with {accounts_count} account(s)")
-                except:
-                    print(f"   Status: {format_status('[ERROR]')} File exists but has errors")
+                    return True, f"Config location displayed (found {accounts_count} accounts)"
+                else:
+                    print(f"   Status: {format_status('[ERROR]')} File exists but has errors: {load_message}")
+                    return False, f"Config file has errors: {load_message}"
             else:
                 print(f"   Status: {format_status('[NOT FOUND]')} File does not exist")
                 print("   Run 'gitswitch add' to create your first account")
+                return True, "Config location displayed (no config file found)"
 
         except Exception as e:
             logger.error(f"Error showing config location: {e}")
             print(format_status("[WARN] Error getting config path"))
+            return False, f"Error showing config location: {e}"

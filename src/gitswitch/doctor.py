@@ -40,22 +40,28 @@ def run_health_check(config_manager, account_manager, git_ops, validation_servic
         print(format_status(f"[OK] Config file location: {config_path}"))
 
         if config_manager.config_exists():
-            config = config_manager.load_config()
-            is_valid, errors, warnings = validation_service.validate_config(config)
+            # Use new tuple-returning method
+            success, config, load_message = config_manager.load_config()
+            if success:
+                is_valid, errors, warnings = validation_service.validate_config(config)
 
-            if is_valid:
-                accounts_count = len(config.get("accounts", {}))
-                print(format_status(f"[OK] Configuration is valid with {accounts_count} account(s)"))
+                if is_valid:
+                    accounts_count = len(config.get("accounts", {}))
+                    print(format_status(f"[OK] Configuration is valid with {accounts_count} account(s)"))
+                else:
+                    print(format_status("[FAIL] Configuration validation errors:"))
+                    for error in errors:
+                        print(f"   • {error}")
+                    all_healthy = False
+
+                # Show warnings but don't fail for them
+                if warnings:
+                    print(format_status("[WARN] Configuration warnings:"))
+                    for warning in warnings:
+                        print(f"   • {warning}")
             else:
-                print(format_status("[FAIL] Configuration validation errors:"))
-                for error in errors:
-                    print(f"   • {error}")
+                print(format_status(f"[FAIL] Could not load configuration: {load_message}"))
                 all_healthy = False
-
-            if warnings:
-                print(format_status("[WARN] Configuration warnings:"))
-                for warning in warnings:
-                    print(f"   • {warning}")
         else:
             print(format_status("[FAIL] Config file does not exist"))
             all_healthy = False
@@ -69,39 +75,46 @@ def run_health_check(config_manager, account_manager, git_ops, validation_servic
     print(SEPARATOR_MEDIUM)
 
     try:
-        accounts = account_manager.get_accounts()
-        if not accounts:
-            print(format_status("[WARN] No accounts configured"))
+        # Use new tuple-returning method
+        success, accounts, accounts_message = account_manager.get_accounts()
+        if success:
+            if not accounts:
+                print(format_status("[WARN] No accounts configured"))
+                # Don't fail for no accounts
+            else:
+                for account_num, account_data in accounts.items():
+                    print(f"\n-- {format_header(f'Account #{account_num}')}: {account_data.get('description', 'No description')} --")
+
+                    is_valid, errors, warnings = validation_service.validate_account(account_data)
+
+                    if is_valid:
+                        print(format_status("[OK] Account validation passed"))
+
+                        # Show GPG status using validation service
+                        gpg_key = account_data.get("gpg_key", "").strip()
+                        if gpg_key:
+                            gpg_info = validation_service.get_gpg_key_info(gpg_key)
+                            print(format_status(f"[OK] GPG: {gpg_info}"))
+
+                        # Show SSH status using validation service
+                        ssh_key = account_data.get("ssh_key", "").strip()
+                        if ssh_key:
+                            ssh_info = validation_service.get_ssh_key_info(ssh_key)
+                            print(format_status(f"[OK] SSH: {ssh_info}"))
+                    else:
+                        print(format_status("[FAIL] Account validation failed:"))
+                        for error in errors:
+                            print(f"   • {error}")
+                        all_healthy = False
+
+                    # Show warnings but don't fail for them
+                    if warnings:
+                        print(format_status("[WARN] Account warnings:"))
+                        for warning in warnings:
+                            print(f"   • {warning}")
         else:
-            for account_num, account_data in accounts.items():
-                print(f"\n-- {format_header(f'Account #{account_num}')}: {account_data.get('description', 'No description')} --")
-
-                is_valid, errors, warnings = validation_service.validate_account(account_data)
-
-                if is_valid:
-                    print(format_status("[OK] Account validation passed"))
-
-                    # Show GPG status using validation service
-                    gpg_key = account_data.get("gpg_key", "").strip()
-                    if gpg_key:
-                        gpg_info = validation_service.get_gpg_key_info(gpg_key)
-                        print(format_status(f"[OK] GPG: {gpg_info}"))
-
-                    # Show SSH status using validation service
-                    ssh_key = account_data.get("ssh_key", "").strip()
-                    if ssh_key:
-                        ssh_info = validation_service.get_ssh_key_info(ssh_key)
-                        print(format_status(f"[OK] SSH: {ssh_info}"))
-                else:
-                    print(format_status("[FAIL] Account validation failed:"))
-                    for error in errors:
-                        print(f"   • {error}")
-                    all_healthy = False
-
-                if warnings:
-                    print(format_status("[WARN] Account warnings:"))
-                    for warning in warnings:
-                        print(f"   • {warning}")
+            print(format_status(f"[ERROR] Error checking accounts: {accounts_message}"))
+            all_healthy = False
 
     except Exception as e:
         print(format_status(f"[ERROR] Error checking accounts: {e}"))
@@ -120,6 +133,7 @@ def run_health_check(config_manager, account_manager, git_ops, validation_servic
                     print(f"   {key.replace('_', ' ').title()}: {value}")
         else:
             print(format_status("[INFO] Not in a git repository (this is okay)"))
+            # Not being in a git repo isn't a failure
 
         # Check current configuration
         name, email = git_ops.get_current_config()
@@ -127,6 +141,7 @@ def run_health_check(config_manager, account_manager, git_ops, validation_servic
             print(format_status(f"[OK] Current git config: {name} <{email}>"))
         else:
             print(format_status("[WARN] No git user configuration set"))
+            # No config is just a warning, not a failure
 
     except Exception as e:
         print(format_status(f"[ERROR] Error testing git functionality: {e}"))
@@ -140,7 +155,7 @@ def run_health_check(config_manager, account_manager, git_ops, validation_servic
         print(format_status("[WARN] Some issues found. Please review the output above."))
         print(">> Run 'gitswitch config' to edit your configuration")
 
-    return all_healthy
+    return all_healthy  # Only fail for actual blocking errors
 
 
 # Legacy function for compatibility

@@ -1,4 +1,4 @@
-"""Core utility functions for gitswitch with secure command execution."""
+"""Fix for utils.py - correcting GPG key validation"""
 
 import logging
 import subprocess
@@ -36,13 +36,28 @@ def validate_git_config_key(key: str) -> bool:
     Validate that a git config key is safe and properly formatted.
 
     Git config keys should match the pattern: section[.subsection].option
+    No consecutive dots allowed.
     """
     if not isinstance(key, str) or not key:
         return False
 
     # Git config key pattern: letters, numbers, dots, hyphens
+    # But no consecutive dots
     pattern = r"^[a-zA-Z][a-zA-Z0-9.-]*[a-zA-Z0-9]$"
-    return bool(re.match(pattern, key)) and len(key) <= 255
+    
+    # Check basic pattern first
+    if not re.match(pattern, key):
+        return False
+    
+    # Check for consecutive dots (invalid)
+    if ".." in key:
+        return False
+    
+    # Check length
+    if len(key) > 255:
+        return False
+        
+    return True
 
 
 def validate_gpg_key_format(gpg_key: str) -> bool:
@@ -50,17 +65,21 @@ def validate_gpg_key_format(gpg_key: str) -> bool:
     Validate GPG key ID format.
 
     Accepts:
-    - 8 character short form (e.g., 'ABCD1234')
+    - 8 character short form (e.g., 'ABCD1234' or 'abcd1234')
     - 16 character long form (e.g., 'ABCD1234EFGH5678')
     - 40 character full fingerprint
     """
     if not isinstance(gpg_key, str):
         return False
 
-    gpg_key = gpg_key.strip().upper()
+    gpg_key = gpg_key.strip()  # Don't convert to uppercase for validation
 
-    # Valid GPG key patterns
-    patterns = [r"^[A-F0-9]{8}$", r"^[A-F0-9]{16}$", r"^[A-F0-9]{40}$"]  # Short form  # Long form  # Full fingerprint
+    # Valid GPG key patterns - accept both upper and lowercase
+    patterns = [
+        r"^[A-Fa-f0-9]{8}$",      # Short form (8 chars)
+        r"^[A-Fa-f0-9]{16}$",     # Long form (16 chars)
+        r"^[A-Fa-f0-9]{40}$"      # Full fingerprint (40 chars)
+    ]
 
     return any(re.match(pattern, gpg_key) for pattern in patterns)
 

@@ -73,11 +73,11 @@ class ValidationService:
 
             # Validate GPG key format
             if not validate_gpg_key_format(gpg_key):
-                warnings.append(f"GPG key format may be invalid: {gpg_key}")
-
-            # Check if GPG key actually exists
-            if not self._check_gpg_key_safe(gpg_key):
-                errors.append(f"GPG key {gpg_key} not found or invalid")
+                errors.append(f"GPG key format is invalid: {gpg_key}")
+            else:
+                # Check if GPG key actually exists (warning only, not error)
+                if not self._check_gpg_key_safe(gpg_key):
+                    warnings.append(f"GPG key {gpg_key} not found on system")
 
         # Check GPG consistency
         if signing_enabled and not gpg_key:
@@ -99,9 +99,9 @@ class ValidationService:
             if not validate_ssh_key_path(ssh_key):
                 warnings.append(f"SSH key path appears to be outside safe directories: {ssh_key}")
 
-            # Check if SSH key file exists and is valid
+            # Check if SSH key file exists and is valid (warning only, not error)
             if not self._check_ssh_key_safe(ssh_key):
-                errors.append(f"SSH key file not found or invalid: {ssh_key}")
+                warnings.append(f"SSH key file not found or invalid: {ssh_key}")
 
         # Sanitize SSH host if provided
         ssh_host = account_data.get("ssh_host", "").strip()

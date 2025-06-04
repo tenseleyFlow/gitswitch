@@ -9,6 +9,7 @@ from typing import Optional, Dict, List
 from .constants import *
 from .exceptions import AccountNotFoundError
 from .utils import safe_input, validate_email
+from .colors import format_status, format_header, format_accent
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
     else:
         name = safe_input("Enter name: ")
         if not name:
-            print(ERR_EMPTY_NAME)
+            print(format_status(ERR_EMPTY_NAME))
             return {}
         account_data["name"] = name
 
@@ -37,7 +38,7 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
         email = safe_input("Enter email: ")
 
     if not validate_email(email):
-        print(ERR_INVALID_EMAIL)
+        print(format_status(ERR_INVALID_EMAIL))
         if current:
             account_data["email"] = current.get("email", "")
         else:
@@ -54,12 +55,12 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
         account_data["description"] = desc if desc else f"{account_data['name']} ({account_data['email']})"
 
     # Scope
-    print("\nScope options: local (current repo only) or global (all repos)")
+    print(f"\n{format_header('Scope options')}: local (current repo only) or global (all repos)")
     if current:
         current_scope = current.get("preferred_scope", DEFAULT_SCOPE)
-        scope = safe_input(f"Preferred scope [{current_scope}]: ").lower()
+        scope = safe_input(f"Preferred scope [{format_accent(current_scope)}]: ").lower()
         if scope and scope not in VALID_SCOPES:
-            print(f"[ERROR] Invalid scope '{scope}', keeping '{current_scope}'")
+            print(format_status(f"[ERROR] Invalid scope '{scope}', keeping '{current_scope}'"))
             scope = current_scope
         account_data["preferred_scope"] = scope if scope else current_scope
     else:
@@ -67,13 +68,13 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
         account_data["preferred_scope"] = scope if scope in VALID_SCOPES else DEFAULT_SCOPE
 
     # === GPG CONFIG ===
-    print("\n── GPG Signing Configuration (optional) ──")
+    print(f"\n── {format_header('GPG Signing Configuration')} (optional) ──")
 
     if current:
         current_key = current.get("gpg_key", "")
         current_signing = current.get("signing_enabled", False)
         if current_key:
-            status = "enabled" if current_signing else "disabled"
+            status = format_status("[ENABLED]") if current_signing else format_status("[DISABLED]")
             print(f"   Current: {current_key} ({status})")
         enable_signing = ask_yes_no("Enable GPG signing?", default=current_signing)
     else:
@@ -81,7 +82,7 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
 
     if enable_signing:
         if not current:
-            print("\nTo find your GPG key ID, run: gpg --list-secret-keys --keyid-format=long")
+            print(f"\n{format_accent('To find your GPG key ID, run')}: gpg --list-secret-keys --keyid-format=long")
 
         key_prompt = "GPG key ID: " if not current else f"GPG key ID [{current.get('gpg_key', 'none')}]: "
         gpg_key = safe_input(key_prompt).strip()
@@ -95,9 +96,9 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
                 account_data["gpg_key"] = gpg_key
                 account_data["signing_enabled"] = True
                 key_info = validation_service.get_gpg_key_info(gpg_key)
-                print(f"[OK] {key_info}")
+                print(format_status(f"[OK] {key_info}"))
             else:
-                print(f"[WARN] Warning: GPG key not found")
+                print(format_status(f"[WARN] Warning: GPG key not found"))
                 if ask_yes_no("Use this key anyway?", default=False):
                     account_data["gpg_key"] = gpg_key
                     account_data["signing_enabled"] = True
@@ -110,7 +111,7 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
         account_data["signing_enabled"] = False
 
     # === SSH CONFIG ===
-    print("\n── SSH Configuration (optional) ──")
+    print(f"\n── {format_header('SSH Configuration')} (optional) ──")
 
     if current:
         current_key = current.get("ssh_key", "")
@@ -122,8 +123,8 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
 
     if configure:
         if not current:
-            print("\nSSH key should be the path to your private key file")
-            print("Example: ~/.ssh/id_rsa_personal")
+            print(f"\n{format_accent('SSH key should be the path to your private key file')}")
+            print(f"{format_accent('Example')}: ~/.ssh/id_rsa_personal")
 
         key_prompt = "SSH key path: " if not current else f"SSH key path [{current.get('ssh_key', 'none')}]: "
         ssh_key = safe_input(key_prompt).strip()
@@ -136,9 +137,9 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
             if validation_service._check_ssh_key_safe(ssh_key):
                 account_data["ssh_key"] = ssh_key
                 key_info = validation_service.get_ssh_key_info(ssh_key)
-                print(f"[OK] {key_info}")
+                print(format_status(f"[OK] {key_info}"))
             else:
-                print(f"[WARN] Warning: SSH key file not found or invalid")
+                print(format_status(f"[WARN] Warning: SSH key file not found or invalid"))
                 if ask_yes_no("Use this key anyway?", default=False):
                     account_data["ssh_key"] = ssh_key
                 else:
@@ -148,8 +149,8 @@ def collect_account_info(validation_service, current: Optional[Dict] = None) -> 
 
             # SSH host
             if not current:
-                print("\nOptional: Custom SSH host (for multiple GitHub accounts)")
-                print("Example: github.com-work (requires ~/.ssh/config setup)")
+                print(f"\n{format_accent('Optional')}: Custom SSH host (for multiple GitHub accounts)")
+                print(f"{format_accent('Example')}: github.com-work (requires ~/.ssh/config setup)")
 
             host_prompt = (
                 "SSH host [default]: " if not current else f"SSH host [{current.get('ssh_host', 'default')}]: "
@@ -193,7 +194,7 @@ def ask_yes_no(question: str, default: Optional[bool] = None) -> bool:
             else:
                 print("Please enter 'y' or 'n'")
         except KeyboardInterrupt:
-            print("\n[CANCELLED]")
+            print(format_status("\n[CANCELLED]"))
             return False
 
 
@@ -202,17 +203,17 @@ def display_account_summary(account_data: dict):
     print(f"   Name: {account_data['name']}")
     print(f"   Email: {account_data['email']}")
     print(f"   Description: {account_data['description']}")
-    print(f"   Scope: {account_data.get('preferred_scope', DEFAULT_SCOPE)}")
+    print(f"   Scope: {format_accent(account_data.get('preferred_scope', DEFAULT_SCOPE))}")
 
     # GPG info
     gpg_key = account_data.get("gpg_key")
     signing_enabled = account_data.get("signing_enabled", False)
     if gpg_key:
-        status = "[ENABLED]" if signing_enabled else "[DISABLED]"
+        status = format_status("[ENABLED]") if signing_enabled else format_status("[DISABLED]")
         print(f"   GPG Key: {gpg_key}")
         print(f"   GPG Signing: {status}")
     else:
-        print("   GPG Signing: [DISABLED]")
+        print(f"   GPG Signing: {format_status('[DISABLED]')}")
 
     # SSH info
     ssh_key = account_data.get("ssh_key")
@@ -221,12 +222,12 @@ def display_account_summary(account_data: dict):
         host_text = f" (host: {ssh_host})" if ssh_host else ""
         print(f"   SSH Key: {ssh_key}{host_text}")
     else:
-        print("   SSH: [NOT CONFIGURED]")
+        print(f"   SSH: {format_status('[NOT CONFIGURED]')}")
 
 
 def add_account_interactive(account_manager, validation_service, git_ops) -> bool:
     """Add a new account interactively."""
-    print("++ Adding New Git Account")
+    print(f"++ {format_header('Adding New Git Account')}")
     print(SEPARATOR_SHORT)
 
     try:
@@ -236,47 +237,47 @@ def add_account_interactive(account_manager, validation_service, git_ops) -> boo
             return False
 
         # Confirm
-        print(f"\n-- Account Summary --")
+        print(f"\n-- {format_header('Account Summary')} --")
         print(SEPARATOR_MEDIUM)
         display_account_summary(account_data)
 
         if not ask_yes_no("Create this account?", default=True):
-            print("[CANCELLED] Account creation cancelled")
+            print(format_status("[CANCELLED] Account creation cancelled"))
             return False
 
         # Validate
         is_valid, errors, warnings = validation_service.validate_account(account_data)
         if not is_valid:
-            print(f"[ERROR] Account validation failed: {'; '.join(errors)}")
+            print(format_status(f"[ERROR] Account validation failed: {'; '.join(errors)}"))
             return False
 
         # Add account
         account_num = account_manager.add_account(account_data)
-        print(f"\n[SUCCESS] Successfully added account #{account_num}:")
+        print(format_status(f"\n[SUCCESS] Successfully added account #{account_num}:"))
         display_account_summary(account_data)
 
         # Offer to switch
         if ask_yes_no("Switch to this account now?", default=True):
             scope = account_data.get("preferred_scope", DEFAULT_SCOPE)
             if git_ops.set_git_config(account_data, scope):
-                print(f">> Switched to new account ({scope})")
+                print(f">> Switched to new account ({format_accent(scope)})")
             else:
-                print("[WARN] Account created but failed to switch")
+                print(format_status("[WARN] Account created but failed to switch"))
 
         return True
 
     except KeyboardInterrupt:
-        print("\n[CANCELLED] Account creation cancelled")
+        print(format_status("\n[CANCELLED] Account creation cancelled"))
         return False
     except Exception as e:
         logger.error(f"Account creation failed: {e}")
-        print(f"[ERROR] Error creating account: {e}")
+        print(format_status(f"[ERROR] Error creating account: {e}"))
         return False
 
 
 def edit_account_interactive(account_manager, validation_service, identifier: Optional[str] = None) -> bool:
     """Edit an existing account interactively."""
-    print("~~ Edit Git Account")
+    print(f"~~ {format_header('Edit Git Account')}")
     print(SEPARATOR_SHORT)
 
     try:
@@ -284,12 +285,12 @@ def edit_account_interactive(account_manager, validation_service, identifier: Op
         if not identifier:
             identifier = safe_input("Enter account number or search term: ")
             if not identifier:
-                print("[ERROR] No identifier provided")
+                print(format_status("[ERROR] No identifier provided"))
                 return False
 
         account_num, account = account_manager.get_account(identifier)
 
-        print(f"\n-- Editing Account #{account_num}: {account['description']} --")
+        print(f"\n-- {format_header(f'Editing Account #{account_num}')}: {account['description']} --")
         print(SEPARATOR_MEDIUM)
         print("Press Enter to keep current value, or type new value:")
         print()
@@ -305,46 +306,46 @@ def edit_account_interactive(account_manager, validation_service, identifier: Op
             return True
 
         # Confirm changes
-        print(f"\n-- Updated Account #{account_num} --")
+        print(f"\n-- {format_header(f'Updated Account #{account_num}')} --")
         print(SEPARATOR_MEDIUM)
         display_account_summary(updated_account)
 
         if not ask_yes_no("Save these changes?", default=True):
-            print("[CANCELLED] Changes cancelled")
+            print(format_status("[CANCELLED] Changes cancelled"))
             return False
 
         # Validate
         is_valid, errors, warnings = validation_service.validate_account(updated_account)
         if not is_valid:
-            print(f"[ERROR] Account validation failed: {'; '.join(errors)}")
+            print(format_status(f"[ERROR] Account validation failed: {'; '.join(errors)}"))
             return False
 
         # Update account
         account_manager.update_account(account_num, updated_account)
-        print(f"\n[SUCCESS] Successfully updated account #{account_num}")
+        print(format_status(f"\n[SUCCESS] Successfully updated account #{account_num}"))
 
         if warnings:
-            print("\n[WARN] Warnings:")
+            print(format_status("\n[WARN] Warnings:"))
             for warning in warnings:
                 print(f"   • {warning}")
 
         return True
 
     except KeyboardInterrupt:
-        print("\n[CANCELLED] Editing cancelled")
+        print(format_status("\n[CANCELLED] Editing cancelled"))
         return False
     except AccountNotFoundError as e:
-        print(f"[ERROR] {e}")
+        print(format_status(f"[ERROR] {e}"))
         return False
     except Exception as e:
         logger.error(f"Account editing failed: {e}")
-        print(f"[ERROR] Error editing account: {e}")
+        print(format_status(f"[ERROR] Error editing account: {e}"))
         return False
 
 
 def remove_account_interactive(account_manager, display_manager, identifier: Optional[str] = None) -> bool:
     """Remove an account interactively."""
-    print("-- Remove Git Account")
+    print(f"-- {format_header('Remove Git Account')}")
     print(SEPARATOR_SHORT)
 
     try:
@@ -360,44 +361,44 @@ def remove_account_interactive(account_manager, display_manager, identifier: Opt
 
                 identifier = safe_input("Enter account number or search term to remove (or 'q' to cancel): ")
                 if not identifier or identifier.lower() == "q":
-                    print("[CANCELLED] Removal cancelled")
+                    print(format_status("[CANCELLED] Removal cancelled"))
                     return False
             except Exception as e:
-                print(f"[ERROR] Error loading accounts: {e}")
+                print(format_status(f"[ERROR] Error loading accounts: {e}"))
                 return False
 
         # Get account info
         account_num, account = account_manager.get_account(identifier)
 
         # Confirm removal
-        print(f"\n[WARN] About to remove account #{account_num}:")
+        print(format_status(f"\n[WARN] About to remove account #{account_num}:"))
         print(SEPARATOR_MEDIUM)
         display_account_summary(account)
 
         if not ask_yes_no("Are you sure you want to remove this account?", default=False):
-            print("[CANCELLED] Removal cancelled")
+            print(format_status("[CANCELLED] Removal cancelled"))
             return False
 
         # Remove account
         account_manager.remove_account(account_num)
-        print(f"[SUCCESS] Successfully removed account #{account_num}")
+        print(format_status(f"[SUCCESS] Successfully removed account #{account_num}"))
         return True
 
     except KeyboardInterrupt:
-        print("\n[CANCELLED] Removal cancelled")
+        print(format_status("\n[CANCELLED] Removal cancelled"))
         return False
     except AccountNotFoundError as e:
-        print(f"[ERROR] {e}")
+        print(format_status(f"[ERROR] {e}"))
         return False
     except Exception as e:
         logger.error(f"Account removal failed: {e}")
-        print(f"[ERROR] Error removing account: {e}")
+        print(format_status(f"[ERROR] Error removing account: {e}"))
         return False
 
 
 def edit_config_file_interactive(config_manager) -> bool:
     """Edit config file in editor."""
-    print("-- Interactive Config Editor")
+    print(f"-- {format_header('Interactive Config Editor')}")
     print(SEPARATOR_SHORT)
 
     editor = os.environ.get("EDITOR", os.environ.get("VISUAL", "nano"))
@@ -405,10 +406,10 @@ def edit_config_file_interactive(config_manager) -> bool:
     try:
         config_path = config_manager.get_config_path()
     except Exception as e:
-        print(f"[ERROR] Failed to get config path: {e}")
+        print(format_status(f"[ERROR] Failed to get config path: {e}"))
         return False
 
-    print(f"Opening {config_path} in {editor}")
+    print(f"Opening {format_accent(str(config_path))} in {format_accent(editor)}")
     print(">> Make your changes and save the file")
     print()
 
@@ -416,11 +417,11 @@ def edit_config_file_interactive(config_manager) -> bool:
     try:
         if config_manager.config_exists():
             backup_path = config_manager.backup_config()
-            print(f"[INFO] Backup created: {backup_path}")
+            print(format_status(f"[INFO] Backup created: {backup_path}"))
         else:
-            print("[INFO] No existing config to backup")
+            print(format_status("[INFO] No existing config to backup"))
     except Exception as e:
-        print(f"[WARN] Could not create backup: {e}")
+        print(format_status(f"[WARN] Could not create backup: {e}"))
         if not ask_yes_no("Continue without backup?", default=False):
             return False
 
@@ -429,37 +430,37 @@ def edit_config_file_interactive(config_manager) -> bool:
         try:
             subprocess.run([editor, str(config_path)], check=True)
 
-            print("\n>> Validating configuration...")
+            print(f"\n>> {format_header('Validating configuration')}...")
 
             try:
                 config = config_manager.load_config(force_reload=True)
-                print("[OK] Configuration is valid!")
+                print(format_status("[OK] Configuration is valid!"))
 
                 accounts_count = len(config.get("accounts", {}))
-                print(f"[INFO] Configuration summary: {accounts_count} account(s)")
+                print(format_status(f"[INFO] Configuration summary: {accounts_count} account(s)"))
                 return True
 
             except Exception as e:
-                print(f"[ERROR] Configuration validation failed: {e}")
+                print(format_status(f"[ERROR] Configuration validation failed: {e}"))
                 print()
 
                 choice = safe_input("Edit again (e), restore backup (r), or ignore errors (i)? [e]: ").lower()
 
                 if choice == "r":
-                    print("[OK] Configuration restored from backup")
+                    print(format_status("[OK] Configuration restored from backup"))
                     return True
                 elif choice == "i":
-                    print("[WARN] Proceeding with errors (configuration may not work properly)")
+                    print(format_status("[WARN] Proceeding with errors (configuration may not work properly)"))
                     return True
                 # else continue loop
 
         except subprocess.CalledProcessError:
-            print("[ERROR] Editor exited with error")
+            print(format_status("[ERROR] Editor exited with error"))
             return False
         except KeyboardInterrupt:
-            print("\n[CANCELLED] Editing cancelled")
+            print(format_status("\n[CANCELLED] Editing cancelled"))
             return False
         except Exception as e:
             logger.error(f"Config editing failed: {e}")
-            print(f"[ERROR] Error opening editor: {e}")
+            print(format_status(f"[ERROR] Error opening editor: {e}"))
             return False

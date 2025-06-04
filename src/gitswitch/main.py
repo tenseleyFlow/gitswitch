@@ -13,6 +13,7 @@ from .display import DisplayManager
 from .constants import *
 from .exceptions import GitSwitchError, AccountNotFoundError, ValidationError
 from .error_handling import setup_logging, get_logger
+from .colors import set_color_mode, format_status, format_header
 
 logger = get_logger("main")
 
@@ -31,19 +32,19 @@ class GitSwitchCLI:
     def switch_account_interactive(self, scope_override: Optional[str] = None) -> bool:
         """Interactive account switching using direct manager calls."""
         try:
-            print("┌────────────────────────────┐")
-            print("│   Git Account Switcher     │")
-            print("└────────────────────────────┘")
+            print("┌────────────────────────────────┐")
+            print(f"│   {format_header('Git Account Switcher')}     │")
+            print("└────────────────────────────────┘")
 
             # Load accounts once and reuse
             try:
                 accounts = self.account_manager.get_accounts()
             except Exception as e:
-                print(f"[ERROR] Error loading accounts: {e}")
+                print(format_status(f"[ERROR] Error loading accounts: {e}"))
                 return False
 
             if not accounts:
-                print(MSG_NO_ACCOUNTS)
+                print(format_status(MSG_NO_ACCOUNTS))
                 print("   Run 'gitswitch add' to create your first account")
                 return False
 
@@ -70,7 +71,7 @@ class GitSwitchCLI:
             return True
         except Exception as e:
             logger.exception("Interactive switching failed")
-            print(f"[ERROR] Error during account switching: {e}")
+            print(format_status(f"[ERROR] Error during account switching: {e}"))
             return False
 
     def _switch_to_account(
@@ -88,7 +89,7 @@ class GitSwitchCLI:
             # Validate account data
             is_valid, errors, warnings = self.validation_service.validate_account(account_data)
             if not is_valid:
-                print(f"[ERROR] Account validation failed: {'; '.join(errors)}")
+                print(format_status(f"[ERROR] Account validation failed: {'; '.join(errors)}"))
                 return False
 
             # Determine scope
@@ -97,7 +98,7 @@ class GitSwitchCLI:
             # Switch using git operations directly
             success = self.git_ops.set_git_config(account_data, scope)
             if not success:
-                print("[ERROR] Failed to set git configuration")
+                print(format_status("[ERROR] Failed to set git configuration"))
                 return False
 
             # Display success
@@ -105,7 +106,7 @@ class GitSwitchCLI:
             return True
 
         except AccountNotFoundError as e:
-            print(f"[ERROR] {e}")
+            print(format_status(f"[ERROR] {e}"))
 
             # Show available accounts to help user (reuse accounts if available)
             if accounts is None:
@@ -121,17 +122,17 @@ class GitSwitchCLI:
             return False
 
         except ValidationError as e:
-            print(f"[ERROR] {e}")
+            print(format_status(f"[ERROR] {e}"))
             return False
 
         except Exception as e:
             logger.exception("Account switching failed")
-            print(f"[ERROR] Error switching to account: {e}")
+            print(format_status(f"[ERROR] Error switching to account: {e}"))
             return False
 
     def _print_switch_success(self, account_num: int, account_data: dict, scope: str):
         """Print successful account switch information."""
-        print(f"[SUCCESS] Successfully switched to: {account_data['description']} ({scope})")
+        print(format_status(f"[SUCCESS] Successfully switched to: {account_data['description']} ({scope})"))
         print(f"   Name: {account_data['name']}")
         print(f"   Email: {account_data['email']}")
         print(f"   Scope: {scope}")
@@ -141,9 +142,9 @@ class GitSwitchCLI:
         signing_enabled = account_data.get("signing_enabled", False)
         if gpg_key and signing_enabled:
             print(f"   GPG Key: {gpg_key}")
-            print(f"   GPG Signing: [ENABLED]")
+            print(f"   GPG Signing: {format_status('[ENABLED]')}")
         else:
-            print("   GPG Signing: [DISABLED]")
+            print(f"   GPG Signing: {format_status('[DISABLED]')}")
 
         # Show SSH status
         ssh_key = account_data.get("ssh_key", "")
@@ -152,7 +153,7 @@ class GitSwitchCLI:
             host_text = f" (host: {ssh_host})" if ssh_host else ""
             print(f"   SSH Key: {ssh_key}{host_text}")
         else:
-            print("   SSH: [NOT CONFIGURED]")
+            print(f"   SSH: {format_status('[NOT CONFIGURED]')}")
 
     def handle_add_command(self) -> bool:
         """Handle the add account command using direct manager calls."""
@@ -162,7 +163,7 @@ class GitSwitchCLI:
             return add_account_interactive(self.account_manager, self.validation_service, self.git_ops)
         except Exception as e:
             logger.exception("Add account command failed")
-            print(f"[ERROR] Error adding account: {e}")
+            print(format_status(f"[ERROR] Error adding account: {e}"))
             return False
 
     def handle_edit_command(self, identifier: str = None) -> bool:
@@ -173,7 +174,7 @@ class GitSwitchCLI:
             return edit_account_interactive(self.account_manager, self.validation_service, identifier)
         except Exception as e:
             logger.exception("Edit account command failed")
-            print(f"[ERROR] Error editing account: {e}")
+            print(format_status(f"[ERROR] Error editing account: {e}"))
             return False
 
     def handle_remove_command(self, identifier: str = None) -> bool:
@@ -184,7 +185,7 @@ class GitSwitchCLI:
             return remove_account_interactive(self.account_manager, self.display, identifier)
         except Exception as e:
             logger.exception("Remove account command failed")
-            print(f"[ERROR] Error removing account: {e}")
+            print(format_status(f"[ERROR] Error removing account: {e}"))
             return False
 
     def handle_list_command(self) -> bool:
@@ -193,7 +194,7 @@ class GitSwitchCLI:
             accounts = self.account_manager.get_accounts()
 
             if not accounts:
-                print(MSG_NO_ACCOUNTS)
+                print(format_status(MSG_NO_ACCOUNTS))
                 print("   Please run 'gitswitch add' to create your first account")
                 return False
 
@@ -203,7 +204,7 @@ class GitSwitchCLI:
 
         except Exception as e:
             logger.exception("List accounts command failed")
-            print(f"[ERROR] Error listing accounts: {e}")
+            print(format_status(f"[ERROR] Error listing accounts: {e}"))
             return False
 
     def handle_status_command(self) -> bool:
@@ -213,7 +214,7 @@ class GitSwitchCLI:
             return True
         except Exception as e:
             logger.exception("Status command failed")
-            print(f"[ERROR] Error showing status: {e}")
+            print(format_status(f"[ERROR] Error showing status: {e}"))
             return False
 
     def handle_config_command(self) -> bool:
@@ -224,7 +225,7 @@ class GitSwitchCLI:
             return edit_config_file_interactive(self.config_manager)
         except Exception as e:
             logger.exception("Config command failed")
-            print(f"[ERROR] Error editing config: {e}")
+            print(format_status(f"[ERROR] Error editing config: {e}"))
             return False
 
     def handle_doctor_command(self) -> bool:
@@ -235,7 +236,7 @@ class GitSwitchCLI:
             return run_health_check(self.config_manager, self.account_manager, self.git_ops, self.validation_service)
         except Exception as e:
             logger.exception("Doctor command failed")
-            print(f"[ERROR] Error running health check: {e}")
+            print(format_status(f"[ERROR] Error running health check: {e}"))
             return False
 
     def handle_validate_command(self, target: str = None) -> bool:
@@ -257,63 +258,63 @@ class GitSwitchCLI:
                 all_valid = True
 
                 # System validation
-                print("\n── System Requirements ──")
+                print(f"\n── {format_header('System Requirements')} ──")
                 sys_valid, sys_errors, _ = self.validation_service.validate_system_requirements()
                 if sys_valid:
-                    print("[OK] All required tools found")
+                    print(format_status("[OK] All required tools found"))
                 else:
-                    print("[FAIL] Missing tools:")
+                    print(format_status("[FAIL] Missing tools:"))
                     for error in sys_errors:
                         print(f"   • {error}")
                     all_valid = False
 
                 # Config validation
-                print("\n── Configuration ──")
+                print(f"\n── {format_header('Configuration')} ──")
                 try:
                     config = self.config_manager.load_config()
                     cfg_valid, cfg_errors, _ = self.validation_service.validate_config(config)
                     if cfg_valid:
-                        print("[OK] Configuration is valid")
+                        print(format_status("[OK] Configuration is valid"))
                     else:
-                        print("[FAIL] Configuration issues:")
+                        print(format_status("[FAIL] Configuration issues:"))
                         for error in cfg_errors:
                             print(f"   • {error}")
                         all_valid = False
                 except Exception as e:
-                    print(f"[FAIL] Could not load configuration: {e}")
+                    print(format_status(f"[FAIL] Could not load configuration: {e}"))
                     all_valid = False
 
                 # Account validation
-                print("\n── Accounts ──")
+                print(f"\n── {format_header('Accounts')} ──")
                 try:
                     accounts = self.account_manager.get_accounts()
                     if accounts:
                         for num, account in accounts.items():
                             acc_valid, acc_errors, _ = self.validation_service.validate_account(account)
                             status = "[OK]" if acc_valid else "[FAIL]"
-                            print(f"   {status} Account #{num}: {account.get('description', 'No description')}")
+                            print(format_status(f"   {status} Account #{num}: {account.get('description', 'No description')}"))
                             if not acc_valid:
                                 for error in acc_errors:
                                     print(f"      • {error}")
                                 all_valid = False
                     else:
-                        print("   [WARN] No accounts configured")
+                        print(format_status("   [WARN] No accounts configured"))
                 except Exception as e:
-                    print(f"   [FAIL] Error checking accounts: {e}")
+                    print(format_status(f"   [FAIL] Error checking accounts: {e}"))
                     all_valid = False
 
                 return all_valid
 
             # Handle single validation results
             if is_valid:
-                print("[OK] Validation passed")
+                print(format_status("[OK] Validation passed"))
             else:
-                print("[FAIL] Validation failed:")
+                print(format_status("[FAIL] Validation failed:"))
                 for error in errors:
                     print(f"   • {error}")
 
             if warnings:
-                print("[WARN] Warnings:")
+                print(format_status("[WARN] Warnings:"))
                 for warning in warnings:
                     print(f"   • {warning}")
 
@@ -321,7 +322,7 @@ class GitSwitchCLI:
 
         except Exception as e:
             logger.exception("Validate command failed")
-            print(f"[ERROR] Error during validation: {e}")
+            print(format_status(f"[ERROR] Error during validation: {e}"))
             return False
 
 
@@ -351,6 +352,11 @@ Examples:
     scope_group.add_argument("--global", action="store_true", help="Set git configuration globally")
     scope_group.add_argument("--local", action="store_true", help="Set git configuration locally")
 
+    # Color arguments
+    color_group = parser.add_mutually_exclusive_group()
+    color_group.add_argument("--color", action="store_true", help="Force color output")
+    color_group.add_argument("--no-color", action="store_true", help="Disable color output")
+
     # Debug and logging options
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--quiet", action="store_true", help="Reduce output verbosity")
@@ -366,6 +372,13 @@ def main():
     """Main CLI entry point with simplified direct manager usage."""
     parser = create_argument_parser()
     args = parser.parse_args()
+
+    # Set up color mode
+    if args.color:
+        set_color_mode(True)
+    elif args.no_color:
+        set_color_mode(False)
+    # Otherwise use auto-detection
 
     # Set up logging
     log_level = "DEBUG" if args.debug else ("WARNING" if args.quiet else "INFO")
@@ -416,13 +429,13 @@ def main():
         success = True
     except GitSwitchError as e:
         logger.warning(f"GitSwitch error: {e}")
-        print(f"[ERROR] {e}")
+        print(format_status(f"[ERROR] {e}"))
         success = False
     except Exception as e:
         logger.exception("Unexpected error in main")
         if args.debug:
             raise
-        print(f"[ERROR] An unexpected error occurred: {e}")
+        print(format_status(f"[ERROR] An unexpected error occurred: {e}"))
         success = False
 
     sys.exit(0 if success else 1)

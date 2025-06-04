@@ -165,17 +165,28 @@ class ValidationService:
         errors = []
         warnings = []
 
+        # Split tools into required and optional
         required_tools = [
             ("git", ["git", "--version"]),
             ("gpg", ["gpg", "--version"]),
+        ]
+        
+        optional_tools = [
             ("ssh", ["ssh", "-V"]),
             ("ssh-keygen", ["ssh-keygen", "-V"]),
         ]
 
+        # Check required tools (errors if missing)
         for tool, check_cmd in required_tools:
             success, _, _ = run_command_safe(check_cmd, silent=True)
             if not success:
                 errors.append(f"Required tool not found: {tool}")
+
+        # Check optional tools (warnings if missing)  
+        for tool, check_cmd in optional_tools:
+            success, _, _ = run_command_safe(check_cmd, silent=True)
+            if not success:
+                warnings.append(f"Optional tool not found: {tool} (SSH key validation may not work)")
 
         is_valid = len(errors) == 0
         return is_valid, errors, warnings
@@ -183,14 +194,14 @@ class ValidationService:
     def get_system_info(self) -> Dict[str, Dict[str, str]]:
         """Get system tool information safely."""
         info = {}
-        required_tools = [
+        all_tools = [
             ("git", ["git", "--version"]),
             ("gpg", ["gpg", "--version"]),
             ("ssh", ["ssh", "-V"]),
             ("ssh-keygen", ["ssh-keygen", "-V"]),
         ]
 
-        for tool, check_cmd in required_tools:
+        for tool, check_cmd in all_tools:
             success, stdout, stderr = run_command_safe(check_cmd, silent=True)
             if success:
                 # Get the first line of output and sanitize it

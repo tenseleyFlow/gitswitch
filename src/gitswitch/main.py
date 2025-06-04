@@ -292,7 +292,11 @@ class GitSwitchCLI:
                         for num, account in accounts.items():
                             acc_valid, acc_errors, _ = self.validation_service.validate_account(account)
                             status = "[OK]" if acc_valid else "[FAIL]"
-                            print(format_status(f"   {status} Account #{num}: {account.get('description', 'No description')}"))
+                            print(
+                                format_status(
+                                    f"   {status} Account #{num}: {account.get('description', 'No description')}"
+                                )
+                            )
                             if not acc_valid:
                                 for error in acc_errors:
                                     print(f"      • {error}")
